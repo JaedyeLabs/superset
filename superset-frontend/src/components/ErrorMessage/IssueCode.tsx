@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import React from 'react';
-
 interface IssueCodeProps {
   code: number;
   message: string;
@@ -28,10 +26,13 @@ export default function IssueCode({ code, message }: IssueCodeProps) {
     <>
       {message}{' '}
       <a
-        href={`https://superset.apache.org/docs/miscellaneous/issue-codes#issue-${code}`}
+        href={`https://superset.apache.org/docs/using-superset/issue-codes#issue-${code}`}
         rel="noopener noreferrer"
         target="_blank"
+        aria-label="Superset docs link"
       >
+        {/* TODO: Remove fa-icon */}
+        {/* eslint-disable-next-line icons/no-fa-icons-usage */}
         <i className="fa fa-external-link" />
       </a>
     </>

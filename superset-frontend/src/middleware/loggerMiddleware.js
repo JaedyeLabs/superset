@@ -18,7 +18,7 @@
  */
 /* eslint-disable camelcase */
 /* eslint prefer-const: 2 */
-import shortid from 'shortid';
+import { nanoid } from 'nanoid';
 import { SupersetClient } from '@superset-ui/core';
 
 import { safeStringify } from '../utils/safeStringify';
@@ -44,6 +44,10 @@ const sendBeacon = events => {
   if (navigator.sendBeacon) {
     const formData = new FormData();
     formData.append('events', safeStringify(events));
+    if (SupersetClient.getGuestToken()) {
+      // if we have a guest token, we need to send it for auth via the form
+      formData.append('guest_token', SupersetClient.getGuestToken());
+    }
     navigator.sendBeacon(endpoint, formData);
   } else {
     SupersetClient.post({
@@ -68,32 +72,43 @@ const loggerMiddleware = store => next => action => {
     return next(action);
   }
 
-  const {
-    dashboardInfo,
-    explore,
-    impressionId,
-    dashboardLayout,
-  } = store.getState();
+  const { dashboardInfo, explore, impressionId, dashboardLayout, sqlLab } =
+    store.getState();
   let logMetadata = {
     impression_id: impressionId,
     version: 'v2',
   };
-  if (dashboardInfo) {
+  const { eventName } = action.payload;
+  let { eventData = {} } = action.payload;
+
+  const path = eventData.path || window?.location?.href;
+
+  if (dashboardInfo?.id && path?.includes('/dashboard/')) {
     logMetadata = {
       source: 'dashboard',
       source_id: dashboardInfo.id,
+      dashboard_id: dashboardInfo.id,
       ...logMetadata,
     };
-  } else if (explore) {
+  } else if (explore?.slice) {
     logMetadata = {
       source: 'explore',
       source_id: explore.slice ? explore.slice.slice_id : 0,
+      ...(explore.slice.slice_id && { slice_id: explore.slice.slice_id }),
       ...logMetadata,
+    };
+  } else if (path?.includes('/sqllab/')) {
+    const editor = sqlLab.queryEditors.find(
+      ({ id }) => id === sqlLab.tabHistory.slice(-1)[0],
+    );
+    logMetadata = {
+      source: 'sqlLab',
+      source_id: editor?.id,
+      db_id: editor?.dbId,
+      schema: editor?.schema,
     };
   }
 
-  const { eventName } = action.payload;
-  let { eventData = {} } = action.payload;
   eventData = {
     ...logMetadata,
     ts: new Date().getTime(),
@@ -107,7 +122,7 @@ const loggerMiddleware = store => next => action => {
       trigger_event: lastEventId,
     };
   } else {
-    lastEventId = shortid.generate();
+    lastEventId = nanoid();
     eventData = {
       ...eventData,
       event_type: 'user',
